@@ -16,7 +16,7 @@ const REPLY_MESSAGES = [
 // ------------------------------
 
 const OTHER_IMAGE_REPLY = [
-  { type: 'text', text: 'รบกวนรอเจ้าหน้าที่ตอบกลับสักครู่นะครับ' },
+  { type: 'text', text: 'กรุณารอเจ้าหน้าที่ตอบกลับสักครู่นะครับ' },
 ]; // ตอบเมื่อส่งรูปโดยไม่ได้อยู่หลังข้อความชำระค่าส่วนกลาง
 
 const client = new line.messagingApi.MessagingApiClient({ channelAccessToken: LINE_ACCESS_TOKEN });
