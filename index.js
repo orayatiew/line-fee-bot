@@ -35,12 +35,39 @@ app.post('/webhook', line.middleware({ channelSecret: LINE_CHANNEL_SECRET }), as
 async function handle(ev) {
   if (ev.type !== 'message') return;
   const uid = ev.source.userId;
-  const text = ev.message.type === 'text' ? ev.message.text.trim() : '';
+  const type = ev.message.type;
+  const text = type === 'text' ? ev.message.text.trim() : '';
 
   const { data: member } = await db.from('members').select('*').eq('line_user_id', uid).maybeSingle();
   const { data: sess } = await db.from('sessions').select('*').eq('line_user_id', uid).maybeSingle();
 
-  // 1) เริ่มแจ้งชำระ
+  // ข้อมูลครบ (รูป + บ้านเลขที่) -> บันทึกและแจ้งลูกบ้าน
+  const finish = async (house_no, slip_url) => {
+    await db.from('payments').insert({ line_user_id: uid, house_no, slip_url });
+    await db.from('sessions').delete().eq('line_user_id', uid);
+    return reply(ev.replyToken, 'อยู่ระหว่างดำเนินการออกใบเสร็จ กรุณารอเจ้าหน้าที่ตอบกลับ');
+  };
+
+  // ---- ลูกบ้านส่งรูป ----
+  if (type === 'image') {
+    const stream = await blob.getMessageContent(ev.message.id);
+    const chunks = []; for await (const c of stream) chunks.push(c);
+    const path = `${uid}/${Date.now()}.jpg`;
+    const up = await db.storage.from('slips').upload(path, Buffer.concat(chunks), { contentType: 'image/jpeg' });
+    if (up.error) throw up.error;
+
+    if (member) return finish(member.house_no, path); // เคยให้บ้านเลขที่แล้ว
+
+    // ยังไม่มีบ้านเลขที่ -> เก็บรูปไว้ก่อน แล้วถาม
+    await db.from('sessions').upsert({
+      line_user_id: uid, step: 'ask_house', slip_url: path, reminded: false, updated_at: new Date(),
+    });
+    return reply(ev.replyToken, 'รบกวนแจ้งบ้านเลขที่ด้วยครับ');
+  }
+
+  if (type !== 'text') return;
+
+  // ---- เริ่มแจ้งชำระด้วยข้อความ ----
   if (text === 'จ่ายค่าส่วนกลาง') {
     if (!member) {
       await setStep(uid, 'ask_house');
@@ -50,30 +77,14 @@ async function handle(ev) {
     return reply(ev.replyToken, `บ้านเลขที่ ${member.house_no}\nกรุณาส่งรูปสลิปการโอนเงินได้เลยค่ะ`);
   }
 
-  // 2) รอบ้านเลขที่ -> ไม่ตอบ/ตอบผิดรูปแบบ จะไม่ไปขั้นต่อไป
+  // ---- รอบ้านเลขที่ ----
   if (sess?.step === 'ask_house') {
     if (!HOUSE_RE.test(text))
       return reply(ev.replyToken, 'รูปแบบบ้านเลขที่ไม่ถูกต้อง กรุณาพิมพ์ใหม่ เช่น 99 หรือ 99/12');
     await db.from('members').upsert({ line_user_id: uid, house_no: text });
+    if (sess.slip_url) return finish(text, sess.slip_url); // มีรูปรออยู่แล้ว -> ครบ
     await setStep(uid, 'ask_slip');
-    return reply(ev.replyToken, `บันทึกบ้านเลขที่ ${text} แล้วค่ะ\nกรุณาส่งรูปสลิปการโอนเงินได้เลย`);
-  }
-
-  // 3) รอสลิป -> ข้อมูลครบเมื่อได้รูป
-  if (sess?.step === 'ask_slip') {
-    if (ev.message.type !== 'image')
-      return reply(ev.replyToken, 'กรุณาส่งเป็น "รูปสลิป" ค่ะ');
-
-    const stream = await blob.getMessageContent(ev.message.id);
-    const chunks = []; for await (const c of stream) chunks.push(c);
-    const path = `${uid}/${Date.now()}.jpg`;
-    const up = await db.storage.from('slips').upload(path, Buffer.concat(chunks), { contentType: 'image/jpeg' });
-    if (up.error) throw up.error;
-
-    const m = member ?? (await db.from('members').select('*').eq('line_user_id', uid).single()).data;
-    await db.from('payments').insert({ line_user_id: uid, house_no: m.house_no, slip_url: path });
-    await db.from('sessions').delete().eq('line_user_id', uid);
-    return reply(ev.replyToken, `รับข้อมูลครบแล้วค่ะ\nบ้านเลขที่ ${m.house_no}\nสถานะ: รอดำเนินการ รอออกใบเสร็จ`);
+    return reply(ev.replyToken, `บันทึกบ้านเลขที่ ${text} แล้วค่ะ\nกรุณาส่งรูปสลิปได้เลย`);
   }
 }
 
