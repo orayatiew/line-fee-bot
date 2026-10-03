@@ -16,7 +16,7 @@ app.post('/webhook', line.middleware({ channelSecret: LINE_CHANNEL_SECRET }), as
       try {
         await client.replyMessage({
           replyToken: ev.replyToken,
-          messages: [{ type: 'text', text: 'อยู่ระหว่างดำเนินการออกใบเสร็จ กรุณารอเจ้าหน้าที่ตอบกลับ' }],
+          messages: [{ type: 'text', text: 'กรุณารอเจ้าหน้าที่ตอบกลับ' }],
         });
       } catch (e) { console.error(e); }
     }
