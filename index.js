@@ -5,7 +5,7 @@ import * as line from '@line/bot-sdk';
 const { LINE_ACCESS_TOKEN, LINE_CHANNEL_SECRET, PORT = 3000 } = process.env;
 
 // ---------- ตั้งค่า ----------
-const TRIGGERS = ['ชำระค่าส่วนกลาง ออนไลน์', 'ชำระค่าส่วนกลาง เงินสด']; // เทียบแบบไม่สนช่องว่าง
+const TRIGGERS = ['ชำระค่าส่วนกลางออนไลน์', 'ชำระค่าส่วนกลางเงินสด']; // เทียบแบบไม่สนช่องว่าง
 const TTL_HOURS = 24;          // ข้อความนำหน้ามีผลกี่ชั่วโมง
 const ONE_REPLY_PER_TRIGGER = true; // true = ตอบรูปแรกครั้งเดียวต่อ 1 ข้อความนำ
 const REPLY_MESSAGES = [
